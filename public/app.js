@@ -84,6 +84,8 @@ function SimulationPage() {
   const [step, setStep] = useState(0);
   const [error, setError] = useState('');
   const [isRunning, setIsRunning] = useState(false);
+  const [history, setHistory] = useState([]);
+  const [historyError, setHistoryError] = useState('');
 
   const allocationPlan = useMemo(() => generateAllocations(method, blocks, files), [method, blocks, files]);
 
@@ -104,6 +106,22 @@ function SimulationPage() {
     }
   }, [step, allocationPlan.length]);
 
+  useEffect(() => {
+    fetchHistory();
+  }, []);
+
+  async function fetchHistory() {
+    try {
+      const response = await fetch('/api/simulations');
+      if (!response.ok) throw new Error('Unable to fetch simulation history.');
+      const data = await response.json();
+      setHistory(data);
+      setHistoryError('');
+    } catch (_error) {
+      setHistoryError('History unavailable (MongoDB may be offline).');
+    }
+  }
+
   async function saveSimulation() {
     try {
       await fetch('/api/simulations', {
@@ -111,6 +129,7 @@ function SimulationPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ method, blocks, files, allocations: allocationPlan }),
       });
+      fetchHistory();
     } catch (_e) {
       // Graceful fail: visualization still works even without DB.
     }
@@ -179,6 +198,26 @@ function SimulationPage() {
             {index}
           </div>
         ))}
+      </div>
+
+      <div className="history-card glass">
+        <div className="history-head">
+          <h3>Recent Simulation Logs</h3>
+          <button className="button ghost" onClick={fetchHistory}>Refresh</button>
+        </div>
+        {historyError && <p className="small error">{historyError}</p>}
+        {!historyError && history.length === 0 && <p className="small">No saved simulations yet.</p>}
+        {history.length > 0 && (
+          <div className="history-list">
+            {history.map((item) => (
+              <article key={item._id} className="history-item">
+                <p><strong>{item.method}</strong></p>
+                <p className="small">Blocks: {item.blocks} | Files: {item.files}</p>
+                <p className="small">Allocated: {item.allocations.join(', ') || 'None'}</p>
+              </article>
+            ))}
+          </div>
+        )}
       </div>
     </section>
   );
